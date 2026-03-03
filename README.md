@@ -5,7 +5,7 @@
   </a>
 </p>
 
-<h1 align="center"><b>IE403.Q11 - Social Media Mining</b></h1>
+<h1 align="center"><b>SE363.Q12 - Real-time Sentiment Analysis System</b></h1>
 
 # **SE363 Personal Project: Real-time Sentiment Analysis System (RSAS)**
 
