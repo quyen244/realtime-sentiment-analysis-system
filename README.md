@@ -27,13 +27,13 @@
 
 ## **Table of Contents**
 
-* [Overview](https://www.google.com/search?q=%23overview)
-* [System Architecture](https://www.google.com/search?q=%23system-architecture)
-* [Tech Stack](https://www.google.com/search?q=%23tech-stack)
-* [Database Schema](https://www.google.com/search?q=%23database-schema)
-* [Features](https://www.google.com/search?q=%23features)
-* [Repository Structure](https://www.google.com/search?q=%23repository-structure)
-* [Installation & Usage](https://www.google.com/search?q=%23installation--usage)
+* [Overview](#overview)
+* [System Architecture](#system-architecture)
+* [Tech Stack](#tech-stack)
+* [Database Schema](#database-schema)
+* [Features](#features)
+* [Repository Structure](#repository-structure)
+* [Installation & Usage](#installation--usage)
 
 ---
 
@@ -59,6 +59,77 @@ The system is designed with a robust streaming architecture to ensure high scala
 3. **Storage:** Analysis results and model version history are stored in **PostgreSQL**.
 4. **Orchestration:** **Airflow** orchestrates periodic retraining pipelines and automatically updates the production model if the new version performs better.
 5. **Visualization:** **Streamlit** provides an interactive Dashboard for end-users to monitor trends.
+
+### visualization about docker interactions 
+
+```mermaid
+graph TB
+    subgraph Host_Machine ["💻 Host Machine (Windows)"]
+        Browser["🌐 Web Browser"]
+        Producer["🐍 Python Producer/SSH"]
+        Project_Dir["📂 D:/.../video-counting (Shared Volume)"]
+    end
+
+    subgraph Docker_Network ["🌐 data-network (Bridge)"]
+        
+        subgraph Kafka_Stack ["📟 Kafka Ecosystem"]
+            Zookeeper["Zookeeper:2181"]
+            Kafka["Kafka:29092 (Internal)<br/>Kafka:9092 (External)"]
+            Kafdrop["Kafdrop:9000 (UI)"]
+        end
+
+        subgraph Storage_Layer ["🗄️ Storage Layer"]
+            Postgres[("Postgres:5432<br/>(Airflow Meta DB)")]
+        end
+
+        subgraph Airflow_Services ["🌪️ Airflow (LocalExecutor)"]
+            AF_Init["Airflow-Init"]
+            AF_Web["Airflow-Webserver:8080"]
+            AF_Sch["Airflow-Scheduler"]
+            AF_Trig["Airflow-Triggerer"]
+            %% Lưu ý: Worker thường không tách rời trong LocalExecutor
+        end
+
+        subgraph Spark_Cluster ["⚡ Spark Cluster"]
+            SparkM["Spark-Master:7077<br/>UI:8081"]
+            SparkW["Spark-Worker"]
+        end
+
+        subgraph ML_Trainer ["🤖 ML Training"]
+            Trainer["Model-Trainer<br/>(SSH:2222)"]
+        end
+
+    end
+
+    %% External Access
+    Browser -->|Port 8080| AF_Web
+    Browser -->|Port 8081| SparkM
+    Browser -->|Port 9000| Kafdrop
+    Producer -->|Port 9092| Kafka
+    Producer -->|Port 2222| Trainer
+
+    %% Internal Dependencies
+    Kafka --> Zookeeper
+    Kafdrop --> Kafka
+    
+    AF_Web & AF_Sch & AF_Trig --> Postgres
+    AF_Init -.->|Initialize DB| Postgres
+
+    SparkW -->|Connect| SparkM
+    
+    %% Volume Mapping
+    Project_Dir <==>|Mount| AF_Sch
+    Project_Dir <==>|Mount| SparkM
+    Project_Dir <==>|Mount| SparkW
+    Project_Dir <==>|Mount| Trainer
+
+    %% Logical Flow
+    SparkW -.->|Consume| Kafka
+    AF_Sch -.->|Orchestrate| SparkM
+    AF_Sch -.->|Execute Script| Trainer
+```
+
+
 
 ---
 
@@ -104,13 +175,29 @@ Supports Airflow's Automated Retraining feature.
 
 ```sql
 CREATE TABLE model_versions(
-    version VARCHAR(50) PRIMARY KEY,
-    model_path TEXT NOT NULL,
-    avg_accuracy DOUBLE PRECISION,
-    avg_f1_score DOUBLE PRECISION,
-    is_production BOOLEAN DEFAULT FALSE,
-    notes TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+     version varchar(50) NOT NULL PRIMARY KEY,
+    model_path text NOT NULL,
+    accuracy_price double precision,
+    accuracy_shipping double precision,
+    accuracy_outlook double precision,
+    accuracy_quality double precision,
+    accuracy_size double precision,
+    accuracy_shop_service double precision,
+    accuracy_general double precision,
+    accuracy_others double precision,
+    avg_accuracy double precision,
+    f1_score_price double precision,
+    f1_score_shipping double precision,
+    f1_score_outlook double precision,
+    f1_score_quality double precision,
+    f1_score_size double precision,
+    f1_score_shop_service double precision,
+    f1_score_general double precision,
+    f1_score_others double precision,
+    avg_f1_score double precision,
+    is_production boolean DEFAULT false,
+    notes text,
+    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
 );
 
 ```
@@ -121,28 +208,43 @@ CREATE TABLE model_versions(
 
 * ✅ **Real-time Processing:** Process and classify comments instantaneously as they arrive.
 * ✅ **Automated Retraining:** Airflow automatically triggers training tasks when new data is available.
+* ✅ **Run end-to-end pipeline:** irflow automatically triggers pipeline by connecting to service through SSH sever and executing commands.
 * ✅ **Model Selection:** Automatically deploys new models only if metrics ($Accuracy, F1$) exceed the current production version.
 * ✅ **Containerization:** All services are Dockerized for easy deployment and management.
 * ✅ **Model Format:** Models are converted to **ONNX** format to significantly accelerate inference speed.
+
 
 ---
 
 ## **Repository Structure**
 
 ```text
-.
-├── airflow-docker/         # Docker config & Airflow DAGs
-│   ├── dags/               # Automated retraining workflows
-│   ├── Dockerfile.spark    # Custom Spark worker image
-│   └── docker-compose.yaml # Orchestration file
-├── data/                   # Sample Datasets (Train/Val/Test)
-├── models/                 # Storage for .pt and .onnx models
-├── src/                    # Source code
-│   ├── producer.py         # Data stream simulator (Kafka producer)
-│   ├── consumer.py         # Spark Streaming logic
-│   ├── train_model.py      # Model retraining script
-│   └── dashboard.py        # Streamlit UI
-└── init_db.sql             # Database initialization script
+├── airflow-docker/          # Infrastructure Orchestration & Containerization
+│   ├── dags/                # Airflow DAG definitions
+│   │                        # Orchestrates automated retraining, evaluation, and deployment loops
+│   ├── Dockerfile.spark     # Custom image for Spark Master/Workers (NLP & Big Data dependencies)
+│   ├── Dockerfile.trainer   # Dedicated service for model training (Optimized for PyTorch/GPU)
+│   └── docker-compose.yaml  # Full-stack orchestration (Airflow, Spark, Kafka, Postgres)
+│
+├── data/                    # Data Management (Versioning)
+│   ├── raw/                 # Raw customer reviews and complaint datasets
+│   └── processed/           # Labeled Aspect/Sentiment data for Train/Val/Test splits
+│
+├── models/                  # Artifact Registry (Model Storage)
+│   ├── checkpoint/          # Intermediate training weights (.pt)
+│   └── production/          # Optimized production-ready models (.onnx) for high-speed inference
+│
+├── src/                     # Core Source Code
+│   ├── config.py            # Global configurations (Kafka topics, Spark parameters, paths)
+│   ├── producer.py          # Data stream simulator (Ingests reviews into Kafka Broker)
+│   ├── consumer.py          # The engine: Spark Structured Streaming for real-time ABSA prediction
+│   │                        # Processes live streams and sinks results to Postgres
+│   ├── train_model.py       # ABSA model training logic (Deep Learning pipeline)
+│   ├── evaluate_model.py    # Performance validation (F1-score, Accuracy per Aspect metrics)
+│   └── dashboard.py         # Streamlit UI for real-time sentiment visualization
+│
+├── init_db.sql              # Database schema initialization (Streaming results & Metadata tables)
+└── requirements.txt         # Python dependency manifest
 
 ```
 
