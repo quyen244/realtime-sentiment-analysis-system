@@ -1,12 +1,4 @@
-# Ignore data and model folders
 
-/data/
-/models/
-
-# Ignore any files inside them even if folder names change
-
-**/data/*
-**/models/*
 
 # Optional: ignore common ML artifacts
 
@@ -15,7 +7,6 @@
 *.h5
 *.ckpt
 *.bin
-*.onnx
 *.keras
 
 # Python cache
