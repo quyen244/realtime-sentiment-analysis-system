@@ -1,0 +1,53 @@
+# --- CORE ML & DEEP LEARNING (ABSA) ---
+
+torch>=2.1.0
+
+torchvision
+
+torchaudio
+
+transformers>=4.35.0     
+
+onnx>=1.15.0                
+
+onnxruntime>=1.16.0        
+
+tf2onnx
+
+
+
+# --- DATA PROCESSING & BIG DATA ---
+
+pyspark>=3.5.0             
+
+confluent-kafka>=2.3.0     
+
+pandas>=2.1.0              
+
+numpy>=1.24.0
+
+
+
+# --- DATABASE & ORCHESTRATION ---
+
+psycopg2-binary>=2.9.9     
+
+sqlalchemy>=2.0.0           
+
+
+
+# --- FRONTEND & VISUALIZATION ---
+
+streamlit>=1.28.0       
+
+plotly>=5.18.0             
+
+matplotlib>=3.8.0
+
+seaborn>=0.13.0
+
+python-dotenv            
+
+tqdm                      
+
+scikit-learn             
